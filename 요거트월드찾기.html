@@ -1,0 +1,1052 @@
+<!DOCTYPE html>
+<!--
+  🍦 요거트월드 찾기 - GitHub Pages 배포용 v2
+  ==========================================
+  【 배포 방법 】
+  1. GitHub 레포지토리 생성 → index.html 업로드
+  2. Settings → Pages → Source: main → Save
+
+  【 필요한 API 키 (모두 무료) 】
+  ① Kakao JavaScript 키 : https://developers.kakao.com
+     - 플랫폼 → Web → GitHub Pages 도메인 등록 필수
+  ② OpenWeatherMap 키   : https://openweathermap.org/api
+     - 무료 플랜 가입 후 API Keys 탭에서 복사 (선택사항)
+-->
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>🍦 요거트월드 찾기</title>
+  <meta name="description" content="내 주변 요거트월드 매장 검색 · 날씨 추천 · 메뉴 · 혼잡도 · 인증샷">
+  <meta name="theme-color" content="#6D28D9">
+  <style>
+    :root {
+      --c-bg:       #F3F0FF;
+      --c-surface:  #FFFFFF;
+      --c-violet:   #6D28D9;
+      --c-violet-l: #EDE9FE;
+      --c-violet-m: #A78BFA;
+      --c-pink:     #DB2777;
+      --c-mint:     #059669;
+      --c-mint-l:   #D1FAE5;
+      --c-mango:    #D97706;
+      --c-mango-l:  #FEF3C7;
+      --c-red-l:    #FEE2E2;
+      --c-red:      #DC2626;
+      --c-gray-100: #F3F4F6;
+      --c-gray-200: #E5E7EB;
+      --c-gray-400: #9CA3AF;
+      --c-gray-500: #6B7280;
+      --c-gray-800: #1F2937;
+      --grad: linear-gradient(135deg, #6D28D9 0%, #DB2777 100%);
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.08);
+      --shadow-md: 0 4px 16px rgba(0,0,0,0.12);
+      --shadow-lg: 0 8px 32px rgba(0,0,0,0.18);
+      --r-sm: 8px; --r-md: 14px; --r-lg: 20px; --r-full: 999px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, 'Malgun Gothic', '맑은 고딕', sans-serif;
+      background: var(--c-bg); color: var(--c-gray-800);
+      max-width: 480px; margin: 0 auto; min-height: 100dvh;
+      position: relative; overflow-x: hidden;
+    }
+
+    /* ── Setup ── */
+    #setup-screen {
+      position: fixed; inset: 0; background: var(--c-bg);
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; padding: 24px 20px; z-index: 9999;
+      overflow-y: auto;
+    }
+    .setup-logo {
+      font-size: 64px; margin-bottom: 10px;
+      filter: drop-shadow(0 4px 12px rgba(109,40,217,0.3));
+      animation: float 3s ease-in-out infinite;
+    }
+    @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+    .setup-title {
+      font-size: 24px; font-weight: 800;
+      background: var(--grad); -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent; margin-bottom: 4px; text-align: center;
+    }
+    .setup-sub { font-size: 13px; color: var(--c-gray-500); text-align: center; margin-bottom: 20px; line-height: 1.6; }
+    .setup-card { background: var(--c-surface); border-radius: var(--r-lg); padding: 20px; width: 100%; box-shadow: var(--shadow-md); margin-bottom: 12px; }
+    .setup-step { display: flex; gap: 10px; margin-bottom: 12px; align-items: flex-start; }
+    .step-num {
+      width: 22px; height: 22px; background: var(--grad); color: white;
+      border-radius: 50%; font-size: 11px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .step-text { font-size: 12px; color: var(--c-gray-500); line-height: 1.5; }
+    .step-text a { color: var(--c-violet); font-weight: 600; text-decoration: none; }
+    .setup-label { font-size: 12px; font-weight: 700; color: var(--c-gray-800); margin-bottom: 6px; }
+    .setup-opt { font-size: 11px; color: var(--c-gray-400); margin-left: 4px; font-weight: 400; }
+    .setup-input {
+      width: 100%; border: 2px solid var(--c-gray-200); border-radius: var(--r-sm);
+      padding: 10px 12px; font-size: 13px; outline: none; transition: border-color 0.2s;
+      font-family: 'Courier New', monospace; letter-spacing: 0.5px; margin-bottom: 10px;
+    }
+    .setup-input:focus { border-color: var(--c-violet-m); }
+    .btn-start {
+      width: 100%; padding: 13px; background: var(--grad); color: white; border: none;
+      border-radius: var(--r-md); font-size: 15px; font-weight: 700; cursor: pointer;
+      box-shadow: 0 4px 14px rgba(109,40,217,0.35); transition: opacity 0.2s, transform 0.1s;
+    }
+    .btn-start:active { transform: scale(0.98); opacity: 0.9; }
+    .setup-err { font-size: 12px; color: var(--c-red); margin-top: 6px; display: none; }
+
+    /* ── App ── */
+    #app-screen { display: none; }
+
+    /* ── Header ── */
+    .header {
+      background: var(--grad); color: white; padding: 13px 16px 11px;
+      display: flex; align-items: center; gap: 10px;
+      position: sticky; top: 0; z-index: 100;
+      box-shadow: 0 2px 12px rgba(109,40,217,0.25);
+    }
+    .header-icon { font-size: 22px; }
+    .header-info { flex: 1; }
+    .header-title { font-size: 17px; font-weight: 800; letter-spacing: -0.4px; }
+    .header-sub { font-size: 10px; opacity: 0.8; margin-top: 1px; }
+    .btn-reset {
+      background: rgba(255,255,255,0.2); border: none; border-radius: var(--r-full);
+      color: white; padding: 5px 10px; font-size: 11px; cursor: pointer; white-space: nowrap;
+    }
+
+    /* ── Weather Banner ── */
+    #weather-bar {
+      display: none; padding: 12px 14px; cursor: pointer;
+      transition: opacity 0.3s;
+    }
+    .weather-inner {
+      border-radius: var(--r-md); padding: 12px 16px;
+      display: flex; align-items: center; gap: 12px;
+      box-shadow: var(--shadow-sm);
+    }
+    .weather-emoji { font-size: 32px; flex-shrink: 0; }
+    .weather-text { flex: 1; }
+    .weather-title { font-size: 13px; font-weight: 800; margin-bottom: 2px; }
+    .weather-msg { font-size: 12px; line-height: 1.5; opacity: 0.9; }
+    .weather-temp { font-size: 20px; font-weight: 900; flex-shrink: 0; }
+
+    /* ── Map ── */
+    #map-wrap { position: relative; }
+    #map { width: 100%; height: 260px; background: #e8e0f5; }
+    .map-loading {
+      position: absolute; inset: 0; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      background: linear-gradient(135deg, #ede9fe 0%, #fce7f3 100%);
+      font-size: 13px; color: var(--c-gray-500); gap: 8px;
+    }
+    .spin {
+      width: 28px; height: 28px; border: 3px solid var(--c-violet-l);
+      border-top-color: var(--c-violet); border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Toolbar ── */
+    .toolbar {
+      background: var(--c-surface); border-bottom: 1px solid var(--c-gray-200);
+      padding: 9px 12px; display: flex; gap: 8px; align-items: center;
+    }
+    .btn-locate {
+      flex-shrink: 0; display: flex; align-items: center; gap: 5px;
+      background: var(--grad); color: white; border: none;
+      border-radius: var(--r-full); padding: 7px 13px; font-size: 12px; font-weight: 700;
+      cursor: pointer; box-shadow: 0 2px 8px rgba(109,40,217,0.3); white-space: nowrap;
+    }
+    .radius-group { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; }
+    .radius-group::-webkit-scrollbar { display: none; }
+    .r-btn {
+      flex-shrink: 0; background: var(--c-gray-100); color: var(--c-gray-500);
+      border: 1.5px solid var(--c-gray-200); border-radius: var(--r-full);
+      padding: 5px 11px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s;
+    }
+    .r-btn.on { background: var(--c-violet-l); color: var(--c-violet); border-color: var(--c-violet-m); }
+
+    /* ── Tabs ── */
+    .tabs {
+      background: var(--c-surface); border-bottom: 1px solid var(--c-gray-200);
+      display: flex; position: sticky; top: 50px; z-index: 90; overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .tabs::-webkit-scrollbar { display: none; }
+    .tab-item {
+      flex-shrink: 0; flex: 1; min-width: 56px; text-align: center;
+      padding: 9px 4px 7px; font-size: 11px; font-weight: 600; color: var(--c-gray-400);
+      cursor: pointer; border-bottom: 2.5px solid transparent; transition: all 0.2s;
+    }
+    .tab-item.on { color: var(--c-violet); border-bottom-color: var(--c-violet); }
+    .tab-emoji { display: block; font-size: 15px; margin-bottom: 1px; }
+
+    /* ── Panels ── */
+    .panel { display: none; padding: 12px 12px 100px; }
+    .panel.on { display: block; }
+
+    /* ── Store Cards ── */
+    .stores-header { font-size: 12px; color: var(--c-gray-500); margin-bottom: 10px; font-weight: 600; }
+    .store-card {
+      background: var(--c-surface); border-radius: var(--r-md); padding: 13px;
+      margin-bottom: 10px; box-shadow: var(--shadow-sm); cursor: pointer;
+      transition: box-shadow 0.2s, transform 0.15s; border: 2px solid transparent; position: relative;
+    }
+    .store-card:active { transform: scale(0.99); }
+    .store-rank { position: absolute; top: 11px; right: 12px; font-size: 16px; }
+    .store-name { font-size: 14px; font-weight: 800; margin-bottom: 4px; letter-spacing: -0.3px; padding-right: 26px; }
+    .store-addr { font-size: 12px; color: var(--c-gray-500); margin-bottom: 7px; line-height: 1.4; }
+    .store-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+    .chip { border-radius: var(--r-full); padding: 3px 8px; font-size: 11px; font-weight: 700; }
+    .chip-dist  { background: var(--c-violet-l); color: var(--c-violet); }
+    .chip-open  { background: var(--c-mint-l);   color: var(--c-mint); }
+    .chip-close { background: var(--c-red-l);    color: var(--c-red); }
+    .chip-phone { background: var(--c-gray-100); color: var(--c-gray-500); }
+
+    /* ── Empty State ── */
+    .empty { text-align: center; padding: 50px 20px; color: var(--c-gray-400); }
+    .empty-icon { font-size: 48px; margin-bottom: 12px; }
+    .empty-msg { font-size: 13px; line-height: 1.7; }
+
+    /* ── Menu ── */
+    .section-head {
+      font-size: 13px; font-weight: 800; color: var(--c-violet);
+      padding: 8px 0; margin-bottom: 4px;
+      border-bottom: 2px solid var(--c-violet-l);
+      display: flex; align-items: center; gap: 6px;
+    }
+    .menu-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 10px 0; border-bottom: 1px solid var(--c-gray-100); gap: 10px;
+    }
+    .menu-row:last-child { border-bottom: none; }
+    .menu-name { font-size: 13px; font-weight: 700; margin-bottom: 2px; }
+    .menu-desc { font-size: 11px; color: var(--c-gray-400); }
+    .menu-price { font-size: 13px; font-weight: 800; color: var(--c-pink); white-space: nowrap; }
+    .menu-tip {
+      background: linear-gradient(135deg, #F5F3FF, #FDF2F8); border-radius: var(--r-md);
+      padding: 12px; margin-top: 12px; font-size: 12px; color: var(--c-violet);
+      line-height: 1.7; border: 1px solid var(--c-violet-l);
+    }
+
+    /* ── Calculator ── */
+    .calc-card { background: var(--c-surface); border-radius: var(--r-md); padding: 14px; margin-bottom: 12px; box-shadow: var(--shadow-sm); }
+    .calc-label { font-size: 13px; font-weight: 700; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+    .gram-slider { width: 100%; accent-color: var(--c-violet); margin: 6px 0; }
+    .gram-display { text-align: center; font-size: 26px; font-weight: 900; color: var(--c-violet); letter-spacing: -1px; margin: 4px 0; }
+    .gram-display span { font-size: 15px; font-weight: 600; }
+    .gram-presets { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 8px; }
+    .gram-btn {
+      flex: 1; min-width: 55px; background: var(--c-gray-100); border: 1.5px solid var(--c-gray-200);
+      border-radius: var(--r-full); padding: 5px 0; font-size: 11px; font-weight: 600;
+      cursor: pointer; color: var(--c-gray-500); transition: all 0.15s;
+    }
+    .gram-btn.on { background: var(--c-violet-l); border-color: var(--c-violet-m); color: var(--c-violet); }
+    .topping-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 7px; }
+    .topping-item {
+      display: flex; align-items: center; gap: 7px; background: var(--c-gray-100);
+      border: 1.5px solid var(--c-gray-200); border-radius: var(--r-sm);
+      padding: 8px 9px; cursor: pointer; transition: all 0.15s; user-select: none;
+    }
+    .topping-item.on { background: var(--c-violet-l); border-color: var(--c-violet-m); }
+    .topping-name { font-size: 12px; font-weight: 700; flex: 1; }
+    .topping-price { font-size: 11px; color: var(--c-pink); font-weight: 700; }
+    .total-box { background: var(--grad); border-radius: var(--r-md); padding: 18px; color: white; text-align: center; margin-top: 4px; }
+    .total-label { font-size: 12px; opacity: 0.85; margin-bottom: 4px; }
+    .total-amount { font-size: 34px; font-weight: 900; letter-spacing: -2px; }
+    .total-amount span { font-size: 20px; font-weight: 700; }
+    .total-breakdown { font-size: 11px; opacity: 0.75; margin-top: 5px; line-height: 1.6; }
+    .combo-card {
+      background: var(--c-surface); border-radius: var(--r-sm); padding: 11px 13px;
+      border: 1.5px solid var(--c-gray-200); cursor: pointer; margin-bottom: 7px; transition: border-color 0.15s;
+    }
+    .combo-card:hover { border-color: var(--c-violet-m); }
+    .combo-name { font-size: 13px; font-weight: 800; margin-bottom: 3px; }
+    .combo-desc { font-size: 11px; color: var(--c-gray-500); line-height: 1.5; }
+    .combo-tag { display: inline-block; background: var(--c-violet-l); color: var(--c-violet); border-radius: var(--r-full); padding: 1px 7px; font-size: 10px; font-weight: 700; margin-top: 5px; }
+
+    /* ── Events ── */
+    .event-card {
+      background: var(--c-surface); border-radius: var(--r-md); padding: 14px;
+      margin-bottom: 10px; box-shadow: var(--shadow-sm); border-left: 4px solid var(--c-violet);
+    }
+    .event-badge { display: inline-flex; align-items: center; gap: 4px; background: var(--grad); color: white; border-radius: var(--r-full); padding: 2px 9px; font-size: 11px; font-weight: 800; margin-bottom: 7px; }
+    .event-title { font-size: 14px; font-weight: 800; margin-bottom: 5px; }
+    .event-desc { font-size: 12px; color: var(--c-gray-500); line-height: 1.6; }
+    .event-period { font-size: 11px; color: var(--c-violet); font-weight: 700; margin-top: 8px; }
+    .btn-official { display: block; text-align: center; background: var(--grad); color: white; border-radius: var(--r-md); padding: 11px; text-decoration: none; font-size: 13px; font-weight: 700; margin-top: 14px; box-shadow: 0 4px 14px rgba(109,40,217,0.3); }
+
+    /* ── Reviews ── */
+    .review-avg { background: var(--grad); border-radius: var(--r-md); padding: 14px; color: white; display: flex; align-items: center; gap: 14px; margin-bottom: 12px; }
+    .avg-score { font-size: 38px; font-weight: 900; letter-spacing: -2px; }
+    .avg-stars { font-size: 16px; letter-spacing: 1px; margin-bottom: 3px; }
+    .avg-count { font-size: 11px; opacity: 0.8; }
+    .review-card { background: var(--c-surface); border-radius: var(--r-md); padding: 13px; margin-bottom: 9px; box-shadow: var(--shadow-sm); }
+    .review-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 7px; }
+    .review-author { font-size: 13px; font-weight: 800; }
+    .review-source { font-size: 10px; color: var(--c-gray-400); margin-top: 2px; }
+    .review-stars { color: #F59E0B; font-size: 12px; letter-spacing: 1px; }
+    .review-text { font-size: 12px; color: var(--c-gray-500); line-height: 1.6; }
+    .review-badge { display: inline-block; background: var(--c-violet-l); color: var(--c-violet); border-radius: var(--r-full); padding: 2px 8px; font-size: 10px; font-weight: 700; margin-top: 7px; }
+    .review-date { font-size: 11px; color: var(--c-gray-400); margin-top: 5px; }
+
+    /* ── 혼잡도 Chart ── */
+    .crowd-section { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--c-gray-200); }
+    .crowd-title { font-size: 13px; font-weight: 800; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+    .crowd-now {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 12px; border-radius: var(--r-sm); margin-bottom: 10px;
+    }
+    .crowd-now-emoji { font-size: 20px; }
+    .crowd-now-label { font-size: 13px; font-weight: 800; }
+    .crowd-now-sub { font-size: 11px; opacity: 0.8; }
+    .crowd-bars { display: flex; gap: 2px; align-items: flex-end; height: 48px; margin-bottom: 4px; }
+    .crowd-bar-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+    .crowd-bar { width: 100%; border-radius: 2px 2px 0 0; transition: height 0.4s; min-height: 2px; }
+    .crowd-bar.current { box-shadow: 0 0 0 2px var(--c-violet); }
+    .crowd-time-labels { display: flex; gap: 2px; }
+    .crowd-time-label { flex: 1; text-align: center; font-size: 8px; color: var(--c-gray-400); }
+    .crowd-legend { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+    .legend-item { display: flex; align-items: center; gap: 4px; font-size: 10px; color: var(--c-gray-500); }
+    .legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+    /* ── 인증샷 갤러리 ── */
+    .insta-header {
+      background: linear-gradient(135deg, #833ab4, #fd1d1d, #fcb045);
+      border-radius: var(--r-md); padding: 16px; color: white; text-align: center; margin-bottom: 14px;
+    }
+    .insta-logo { font-size: 28px; margin-bottom: 6px; }
+    .insta-title { font-size: 15px; font-weight: 800; margin-bottom: 4px; }
+    .insta-sub { font-size: 12px; opacity: 0.85; }
+    .hashtag-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 16px; }
+    .hashtag-btn {
+      display: flex; align-items: center; gap: 8px;
+      background: var(--c-surface); border: 1.5px solid var(--c-gray-200);
+      border-radius: var(--r-md); padding: 12px 14px; text-decoration: none;
+      color: var(--c-gray-800); transition: all 0.15s; box-shadow: var(--shadow-sm);
+    }
+    .hashtag-btn:hover { border-color: var(--c-violet-m); }
+    .hashtag-icon { font-size: 20px; }
+    .hashtag-text { flex: 1; }
+    .hashtag-name { font-size: 13px; font-weight: 800; color: var(--c-violet); }
+    .hashtag-count { font-size: 11px; color: var(--c-gray-400); margin-top: 1px; }
+    .gallery-tip {
+      background: var(--c-violet-l); border-radius: var(--r-md); padding: 12px 14px;
+      font-size: 12px; color: var(--c-violet); line-height: 1.7; margin-bottom: 14px;
+    }
+    .gallery-previews { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 14px; }
+    .preview-card {
+      aspect-ratio: 1; border-radius: var(--r-sm); display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 4px; font-size: 24px;
+      cursor: pointer; text-decoration: none; transition: transform 0.15s;
+    }
+    .preview-card:active { transform: scale(0.95); }
+    .preview-label { font-size: 10px; font-weight: 700; color: white; text-shadow: 0 1px 3px rgba(0,0,0,0.4); }
+    .btn-insta-main {
+      display: block; text-align: center; padding: 13px;
+      background: linear-gradient(135deg, #833ab4, #fd1d1d, #fcb045);
+      color: white; border-radius: var(--r-md); text-decoration: none;
+      font-size: 14px; font-weight: 800; box-shadow: 0 4px 14px rgba(131,58,180,0.35);
+    }
+
+    /* ── Bottom Sheet ── */
+    #sheet-bg {
+      position: fixed; inset: 0; background: rgba(0,0,0,0); z-index: 400;
+      display: none; transition: background 0.3s;
+    }
+    #sheet-bg.show { background: rgba(0,0,0,0.45); display: block; }
+    #sheet {
+      position: fixed; bottom: 0; left: 50%; transform: translateX(-50%) translateY(100%);
+      width: 100%; max-width: 480px; background: var(--c-surface);
+      border-radius: 22px 22px 0 0; z-index: 500; max-height: 80dvh;
+      overflow-y: auto; transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+      box-shadow: var(--shadow-lg);
+    }
+    #sheet.show { transform: translateX(-50%) translateY(0); }
+    .sheet-handle { width: 40px; height: 4px; background: var(--c-gray-200); border-radius: var(--r-full); margin: 12px auto 0; }
+    .sheet-body { padding: 14px 16px 32px; }
+    .sheet-name { font-size: 17px; font-weight: 900; letter-spacing: -0.5px; margin-bottom: 3px; padding-right: 32px; }
+    .sheet-cat { font-size: 11px; color: var(--c-gray-400); margin-bottom: 10px; }
+    .sheet-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 12px; }
+    .sheet-info-row { display: flex; gap: 10px; align-items: flex-start; padding: 9px 0; border-bottom: 1px solid var(--c-gray-100); font-size: 12px; }
+    .sheet-info-row:last-of-type { border-bottom: none; }
+    .sheet-info-icon { font-size: 15px; flex-shrink: 0; width: 22px; text-align: center; }
+    .sheet-info-val { flex: 1; line-height: 1.5; color: var(--c-gray-800); }
+    .sheet-info-val a { color: var(--c-violet); text-decoration: none; font-weight: 600; }
+    .sheet-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-top: 14px; }
+    .action-btn { display: flex; align-items: center; justify-content: center; gap: 5px; padding: 10px; border-radius: var(--r-sm); font-size: 12px; font-weight: 700; text-decoration: none; border: none; cursor: pointer; }
+    .action-kakao { background: #FEE500; color: #3C1E1E; }
+    .action-naver { background: #03C75A; color: white; }
+    .action-nav { grid-column: 1 / -1; background: var(--grad); color: white; box-shadow: 0 4px 14px rgba(109,40,217,0.3); }
+    .btn-sheet-close { position: absolute; top: 14px; right: 14px; background: var(--c-gray-100); border: none; border-radius: 50%; width: 28px; height: 28px; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+
+    ::-webkit-scrollbar { width: 3px; }
+    ::-webkit-scrollbar-thumb { background: var(--c-violet-l); border-radius: 2px; }
+  </style>
+</head>
+<body>
+
+<!-- ══ SETUP ══ -->
+<div id="setup-screen">
+  <div class="setup-logo">🍦</div>
+  <div class="setup-title">요거트월드 찾기</div>
+  <div class="setup-sub">주변 매장 · 날씨 추천 · 혼잡도 · 인증샷<br>무료 API 키로 시작하세요</div>
+
+  <div class="setup-card">
+    <div style="font-size:13px;font-weight:800;margin-bottom:12px;">① Kakao 지도 키 <span style="color:var(--c-red);font-size:11px;">필수</span></div>
+    <div class="setup-step">
+      <div class="step-num">1</div>
+      <div class="step-text"><a href="https://developers.kakao.com" target="_blank">developers.kakao.com</a> 로그인 → 앱 추가</div>
+    </div>
+    <div class="setup-step">
+      <div class="step-num">2</div>
+      <div class="step-text">[앱 키] → <strong>JavaScript 키</strong> 복사</div>
+    </div>
+    <div class="setup-step" style="margin-bottom:10px;">
+      <div class="step-num">3</div>
+      <div class="step-text">[플랫폼] → Web → 이 페이지 주소 도메인 등록</div>
+    </div>
+    <div class="setup-label">Kakao JavaScript 키</div>
+    <input id="kk-input" class="setup-input" type="text" placeholder="예) a1b2c3d4e5f6g7h8..." autocomplete="off">
+
+    <div style="font-size:13px;font-weight:800;margin:14px 0 10px;">② OpenWeatherMap 키 <span class="setup-opt">선택 (날씨 연동용)</span></div>
+    <div class="setup-step" style="margin-bottom:10px;">
+      <div class="step-num">1</div>
+      <div class="step-text"><a href="https://openweathermap.org/api" target="_blank">openweathermap.org</a> 가입 → API Keys 탭에서 복사</div>
+    </div>
+    <div class="setup-label">OpenWeatherMap API 키 <span class="setup-opt">(없으면 날씨 배너 숨겨짐)</span></div>
+    <input id="ow-input" class="setup-input" type="text" placeholder="예) abc123def456..." autocomplete="off">
+
+    <div class="setup-err" id="setup-err">⚠️ Kakao API 키 로드 실패. 키와 도메인 등록을 확인해주세요.</div>
+    <button class="btn-start" onclick="startApp()">🚀 시작하기</button>
+  </div>
+</div>
+
+<!-- ══ APP ══ -->
+<div id="app-screen">
+
+  <div class="header">
+    <div class="header-icon">🍦</div>
+    <div class="header-info">
+      <div class="header-title">요거트월드 찾기</div>
+      <div class="header-sub">매장 · 날씨 · 메뉴 · 혼잡도 · 인증샷</div>
+    </div>
+    <button class="btn-reset" onclick="resetKey()">🔑 키변경</button>
+  </div>
+
+  <!-- 날씨 배너 -->
+  <div id="weather-bar">
+    <div class="weather-inner" id="weather-inner">
+      <div class="weather-emoji" id="w-emoji">☀️</div>
+      <div class="weather-text">
+        <div class="weather-title" id="w-title">날씨 불러오는 중...</div>
+        <div class="weather-msg" id="w-msg"></div>
+      </div>
+      <div class="weather-temp" id="w-temp"></div>
+    </div>
+  </div>
+
+  <!-- 지도 -->
+  <div id="map-wrap">
+    <div id="map">
+      <div class="map-loading" id="map-loading">
+        <div class="spin"></div>
+        지도 불러오는 중...
+      </div>
+    </div>
+  </div>
+
+  <!-- 툴바 -->
+  <div class="toolbar">
+    <button class="btn-locate" onclick="getLocation()">📍 내 위치</button>
+    <div class="radius-group">
+      <button class="r-btn" data-r="1000"  onclick="setRadius(1000,this)">1km</button>
+      <button class="r-btn on" data-r="3000" onclick="setRadius(3000,this)">3km</button>
+      <button class="r-btn" data-r="5000"  onclick="setRadius(5000,this)">5km</button>
+      <button class="r-btn" data-r="10000" onclick="setRadius(10000,this)">10km</button>
+    </div>
+  </div>
+
+  <!-- 탭 -->
+  <div class="tabs">
+    <div class="tab-item on" onclick="switchTab('stores',this)"><span class="tab-emoji">🗺️</span>매장</div>
+    <div class="tab-item" onclick="switchTab('menu',this)"><span class="tab-emoji">🍓</span>메뉴</div>
+    <div class="tab-item" onclick="switchTab('calc',this)"><span class="tab-emoji">💰</span>계산기</div>
+    <div class="tab-item" onclick="switchTab('events',this)"><span class="tab-emoji">🎉</span>이벤트</div>
+    <div class="tab-item" onclick="switchTab('reviews',this)"><span class="tab-emoji">⭐</span>후기</div>
+    <div class="tab-item" onclick="switchTab('gallery',this)"><span class="tab-emoji">📸</span>인증샷</div>
+  </div>
+
+  <!-- 매장 패널 -->
+  <div id="panel-stores" class="panel on">
+    <div class="empty" id="stores-empty">
+      <div class="empty-icon">📍</div>
+      <div class="empty-msg"><strong>'내 위치'</strong> 버튼을 누르면<br>주변 요거트월드를 바로 찾아드려요!</div>
+    </div>
+    <div id="stores-list" style="display:none;"></div>
+  </div>
+
+  <!-- 메뉴 패널 -->
+  <div id="panel-menu" class="panel">
+    <div class="section-head">🍦 소프트 요거트 (그램 요금제)</div>
+    <div id="yogurt-menu"></div>
+    <div class="menu-tip">
+      💡 <strong>셀프 서빙 방식</strong><br>
+      원하는 만큼 담고 계산대에서 무게로 계산해요.<br>
+      평균 1인분 200~300g → 약 <strong>1만8천~2만7천원</strong>
+    </div>
+    <div class="section-head" style="margin-top:16px;">🍓 과일 토핑</div>
+    <div id="fruit-topping"></div>
+    <div class="section-head" style="margin-top:16px;">🍡 떡 & 씨리얼 토핑</div>
+    <div id="rice-topping"></div>
+    <div class="section-head" style="margin-top:16px;">🍯 소스 & 견과류 토핑</div>
+    <div id="sauce-topping"></div>
+    <p style="font-size:11px;color:var(--c-gray-400);text-align:center;margin-top:16px;">※ 가격은 매장별·시기별로 상이할 수 있습니다</p>
+  </div>
+
+  <!-- 계산기 패널 -->
+  <div id="panel-calc" class="panel">
+    <div class="total-box" style="margin-bottom:12px;">
+      <div class="total-label">예상 합계금액</div>
+      <div class="total-amount" id="total-price">0<span>원</span></div>
+      <div class="total-breakdown" id="total-breakdown">요거트 + 토핑을 선택하세요</div>
+    </div>
+    <div class="calc-card">
+      <div class="calc-label">🍦 요거트 양 선택</div>
+      <div class="gram-display"><span id="gram-val">200</span><span>g</span></div>
+      <input type="range" class="gram-slider" id="gram-slider" min="50" max="500" step="10" value="200" oninput="onGramChange(this.value)">
+      <div class="gram-presets">
+        <button class="gram-btn" onclick="setGram(100)">살짝<br>100g</button>
+        <button class="gram-btn on" onclick="setGram(200)">보통<br>200g</button>
+        <button class="gram-btn" onclick="setGram(300)">듬뿍<br>300g</button>
+        <button class="gram-btn" onclick="setGram(400)">폭식<br>400g</button>
+      </div>
+    </div>
+    <div class="calc-card">
+      <div class="calc-label">🍓 토핑 선택 (복수 가능)</div>
+      <div class="topping-grid" id="topping-grid"></div>
+    </div>
+    <div class="calc-card">
+      <div class="calc-label">🏆 인기 조합 바로 적용</div>
+      <div id="combos-grid"></div>
+    </div>
+  </div>
+
+  <!-- 이벤트 패널 -->
+  <div id="panel-events" class="panel">
+    <div id="events-list"></div>
+    <a href="https://www.yogurtworld.co.kr" target="_blank" class="btn-official">🔗 공식 홈페이지 최신 이벤트 확인</a>
+    <p style="font-size:11px;color:var(--c-gray-400);text-align:center;margin-top:12px;">※ 이벤트는 매장별·기간별로 다를 수 있습니다</p>
+  </div>
+
+  <!-- 후기 패널 -->
+  <div id="panel-reviews" class="panel">
+    <div class="review-avg">
+      <div><div class="avg-score">4.6</div></div>
+      <div>
+        <div class="avg-stars">★★★★☆</div>
+        <div style="font-size:13px;font-weight:700;">요거트월드 평균 평점</div>
+        <div class="avg-count">카카오맵 · 네이버 지도 기준</div>
+      </div>
+    </div>
+    <div id="reviews-list"></div>
+    <p style="font-size:11px;color:var(--c-gray-400);text-align:center;margin-top:10px;">※ 실제 리뷰는 카카오맵 · 네이버 지도에서 확인하세요</p>
+  </div>
+
+  <!-- 인증샷 패널 -->
+  <div id="panel-gallery" class="panel">
+    <div class="insta-header">
+      <div class="insta-logo">📸</div>
+      <div class="insta-title">요거트월드 인증샷 보기</div>
+      <div class="insta-sub">인스타그램 해시태그로 실제 후기 사진을 확인하세요</div>
+    </div>
+    <div class="gallery-tip">
+      💡 아래 해시태그를 누르면 인스타그램에서 실제 방문객이 올린 사진을 바로 볼 수 있어요!
+    </div>
+    <div class="gallery-previews" id="gallery-previews"></div>
+    <div class="hashtag-grid" id="hashtag-grid"></div>
+    <a href="https://www.instagram.com/explore/tags/요거트월드/" target="_blank" class="btn-insta-main">
+      📸 인스타그램에서 더 보기
+    </a>
+    <p style="font-size:11px;color:var(--c-gray-400);text-align:center;margin-top:12px;">※ 인스타그램 앱 또는 웹 브라우저로 연결됩니다</p>
+  </div>
+
+</div><!-- /app-screen -->
+
+<!-- ══ SHEET ══ -->
+<div id="sheet-bg" onclick="closeSheet()"></div>
+<div id="sheet">
+  <div class="sheet-handle"></div>
+  <button class="btn-sheet-close" onclick="closeSheet()">✕</button>
+  <div class="sheet-body" id="sheet-body"></div>
+</div>
+
+<script>
+// ── Data ─────────────────────────────────────────────────────────────────────
+
+const MENU = {
+  yogurt: [
+    { name:'오리지널 플레인', desc:'담백하고 고소한 기본 플레인', price:'89원/g' },
+    { name:'딸기', desc:'새콤달콤 딸기 소프트 요거트', price:'89원/g' },
+    { name:'블루베리', desc:'항산화 풍부한 블루베리 맛', price:'89원/g' },
+    { name:'망고', desc:'달콤한 열대과일 망고 맛', price:'89원/g' },
+    { name:'그린티', desc:'은은한 말차향 소프트 요거트', price:'89원/g' },
+    { name:'초코', desc:'진한 다크초콜릿 소프트 요거트', price:'89원/g' },
+  ],
+  fruit:[ {name:'딸기',price:500},{name:'블루베리',price:600},{name:'망고',price:600},{name:'키위',price:500},{name:'파인애플',price:500},{name:'복숭아',price:500} ],
+  rice: [ {name:'찹쌀떡',price:500},{name:'인절미',price:500},{name:'그래놀라',price:300},{name:'콘플레이크',price:300},{name:'오레오 크럼',price:400} ],
+  sauce:[ {name:'딸기소스',price:300},{name:'블루베리소스',price:300},{name:'초코소스',price:300},{name:'연유',price:300},{name:'아몬드 슬라이스',price:400},{name:'호두',price:400} ],
+};
+
+const TOPPINGS_CALC = [
+  {name:'딸기',price:500,emoji:'🍓'},{name:'블루베리',price:600,emoji:'🫐'},
+  {name:'망고',price:600,emoji:'🥭'},{name:'키위',price:500,emoji:'🥝'},
+  {name:'찹쌀떡',price:500,emoji:'🍡'},{name:'인절미',price:500,emoji:'🟡'},
+  {name:'그래놀라',price:300,emoji:'🌾'},{name:'오레오',price:400,emoji:'⬛'},
+  {name:'초코소스',price:300,emoji:'🍫'},{name:'딸기소스',price:300,emoji:'🍓'},
+  {name:'연유',price:300,emoji:'🥛'},{name:'아몬드',price:400,emoji:'🥜'},
+];
+
+const COMBOS = [
+  { name:'🍓 딸기 천국', desc:'플레인 200g + 딸기 + 딸기소스 + 찹쌀떡', tag:'인기 1위', grams:200, tops:['딸기','딸기소스','찹쌀떡'] },
+  { name:'🫐 블루베리 다이어트', desc:'플레인 150g + 블루베리 + 그래놀라', tag:'다이어터 추천', grams:150, tops:['블루베리','그래놀라'] },
+  { name:'🍫 초코 인절미', desc:'초코 250g + 인절미 + 초코소스 + 아몬드', tag:'어린이 최애', grams:250, tops:['인절미','초코소스','아몬드'] },
+  { name:'🥭 망고 열대', desc:'망고 200g + 망고 + 키위 + 연유', tag:'여름 한정 추천', grams:200, tops:['망고','키위','연유'] },
+];
+
+const EVENTS = [
+  { badge:'🎊 상시', title:'앱 회원 웰컴 쿠폰', desc:'공식 앱 가입 시 1,000원 쿠폰 즉시 지급! 스탬프 10개 적립 시 1컵 무료.', period:'📅 상시' },
+  { badge:'☀️ 여름 한정', title:'망고 & 패션후르츠 시즌 출시', desc:'매년 여름 한정 블렌드 요거트. 수량 한정이라 일찍 가세요!', period:'📅 6월~8월' },
+  { badge:'👨‍👩‍👧 주말 혜택', title:'3인 이상 토핑 무료 이벤트', desc:'3인 이상 동반 방문 시 토핑 1종 무료 추가.', period:'📅 매주 토·일' },
+  { badge:'📸 SNS', title:'인증샷 이벤트', desc:'@yogurtworld_kr 태그 인스타 업로드 시 다음 방문 토핑 무료 쿠폰 증정.', period:'📅 상시 (매월 발표)' },
+  { badge:'🆕 오픈', title:'신규 매장 오픈 기념', desc:'신규 매장 첫 방문 SNS 체크인 시 토핑 무료 + 당일 10% 할인.', period:'📅 오픈 후 1개월' },
+];
+
+const REVIEWS = [
+  { author:'슈슈맘💜', rating:5, text:'아이들이랑 주말마다 오는데 토핑 종류가 너무 다양해서 매번 새롭게 즐길 수 있어요! 딸기+인절미 조합 강추합니다 🍓', source:'카카오맵', date:'2024.06', badge:'단골' },
+  { author:'다이어터 승유', rating:5, text:'그램으로 재니까 원하는 만큼만 먹을 수 있어서 죄책감 없어요. 플레인+블루베리+그래놀라 건강한 디저트 완성!', source:'네이버 지도', date:'2024.05', badge:'재방문' },
+  { author:'요거트마니아88', rating:4, text:'그린티 요거트 말차향이 진해서 너무 좋았어요. 주말 오후엔 좀 붐비니 평일 오전 추천합니다.', source:'카카오맵', date:'2024.04', badge:null },
+  { author:'초코러버', rating:5, text:'초코요거트+찹쌀떡+초코소스 황금조합입니다 ㅎㅎ 양 조절 가능해서 가성비도 좋아요.', source:'네이버 지도', date:'2024.03', badge:'자주방문' },
+  { author:'건강덕후JY', rating:4, text:'요거트 자체 품질이 좋아요. 앱 쿠폰 꼭 챙겨 오세요! 피크타임엔 대기 있음.', source:'카카오맵', date:'2024.02', badge:null },
+  { author:'망고킹', rating:5, text:'여름 한정 망고 요거트 진짜 맛있어요!! 열대과일 토핑 올리면 리조트 느낌 ㅋㅋ', source:'네이버 지도', date:'2024.07', badge:'시즌 추천' },
+];
+
+// 혼잡도 패턴 (0=한산, 100=매우혼잡) [0시~23시]
+const CROWD = {
+  0:[0,0,0,0,0,0,5,10,15,20,30,40,50,55,50,45,40,35,30,20,15,10,5,0],  // 일
+  1:[0,0,0,0,0,0,5,8,10,15,20,30,35,30,25,30,40,55,50,40,25,15,5,0],   // 월
+  2:[0,0,0,0,0,0,5,8,10,15,20,30,35,30,25,30,40,55,50,40,25,15,5,0],   // 화
+  3:[0,0,0,0,0,0,5,8,10,15,20,30,35,30,25,30,40,55,50,40,25,15,5,0],   // 수
+  4:[0,0,0,0,0,0,5,8,10,15,20,30,35,30,25,35,45,60,55,45,30,20,10,0],  // 목
+  5:[0,0,0,0,0,0,5,10,15,20,30,45,55,65,70,72,75,70,65,55,45,35,20,5], // 금
+  6:[0,0,0,0,0,0,5,15,25,40,55,65,75,85,88,85,80,72,65,55,45,30,15,5], // 토
+};
+
+const HASHTAGS = [
+  { tag:'#요거트월드', count:'32만+ 게시물', emoji:'🍦', color:'#7C3AED', url:'https://www.instagram.com/explore/tags/%EC%9A%94%EA%B1%B0%ED%8A%B8%EC%9B%94%EB%93%9C/' },
+  { tag:'#yogurtworld', count:'8만+ 게시물', emoji:'🌟', color:'#DB2777', url:'https://www.instagram.com/explore/tags/yogurtworld/' },
+  { tag:'#소프트아이스크림', count:'120만+ 게시물', emoji:'🍦', color:'#D97706', url:'https://www.instagram.com/explore/tags/%EC%86%8C%ED%94%84%ED%8A%B8%EC%95%84%EC%9D%B4%EC%8A%A4%ED%81%AC%EB%A6%BC/' },
+  { tag:'#셀프요거트', count:'15만+ 게시물', emoji:'😋', color:'#059669', url:'https://www.instagram.com/explore/tags/%EC%85%80%ED%94%84%EC%9A%94%EA%B1%B0%ED%8A%B8/' },
+];
+
+const GALLERY_PREVIEWS = [
+  { emoji:'🍓', label:'딸기 조합', bg:'linear-gradient(135deg,#fce7f3,#fda4af)' },
+  { emoji:'🫐', label:'블루베리', bg:'linear-gradient(135deg,#ede9fe,#a78bfa)' },
+  { emoji:'🥭', label:'망고 토핑', bg:'linear-gradient(135deg,#fef3c7,#fcd34d)' },
+  { emoji:'🍫', label:'초코 조합', bg:'linear-gradient(135deg,#1c1917,#44403c)', dark:true },
+  { emoji:'🍡', label:'떡 토핑', bg:'linear-gradient(135deg,#ecfdf5,#6ee7b7)' },
+  { emoji:'✨', label:'나만의 조합', bg:'linear-gradient(135deg,#f0f4ff,#818cf8)' },
+];
+
+const WEATHER_CONFIGS = [
+  { range:[200,299], emoji:'⛈️', title:'천둥번개 치는 날이네요', msg:'밖이 위험해도 요거트월드는 쾌적한 실내예요 🍦', bg:'#1e293b', color:'#e2e8f0' },
+  { range:[300,399], emoji:'🌦️', title:'이슬비가 내리고 있어요', msg:'이런 날 달달한 거 당기죠. 요거트 한 컵 어때요?', bg:'#1d4ed8', color:'white' },
+  { range:[500,599], emoji:'🌧️', title:'비 오는 날이에요', msg:'비 맞고 들어온 후 시원한 요거트로 기분 전환!', bg:'#1e40af', color:'white' },
+  { range:[600,699], emoji:'❄️', title:'눈이 내리고 있어요', msg:'눈 오는 날 아이스 요거트? 의외로 진짜 맛있어요 ☃️', bg:'#075985', color:'white' },
+  { range:[700,799], emoji:'🌫️', title:'안개가 짙은 날이에요', msg:'뿌연 날씨엔 달콤한 것으로 기분 환기!', bg:'#475569', color:'white' },
+];
+
+// ── State ─────────────────────────────────────────────────────────────────────
+
+let map=null, markers=[], userMarker=null, userPos=null;
+let searchRadius=3000, storeList=[];
+let gramVal=200, selectedToppings=new Set();
+const YOGURT_PER_G=89;
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+
+window.addEventListener('DOMContentLoaded', () => {
+  renderStaticContent();
+  const kk=localStorage.getItem('kk');
+  if(kk) { document.getElementById('kk-input').value=kk; loadSDK(kk); }
+  const ow=localStorage.getItem('ow');
+  if(ow) document.getElementById('ow-input').value=ow;
+});
+
+function renderStaticContent(){
+  renderMenu(); renderToppingGrid(); renderCombos(); renderEvents(); renderReviews(); renderGallery(); updateCalc();
+}
+
+// ── Setup ─────────────────────────────────────────────────────────────────────
+
+function startApp(){
+  const kk=document.getElementById('kk-input').value.trim();
+  const ow=document.getElementById('ow-input').value.trim();
+  if(!kk||kk.length<10){ showErr('Kakao API 키를 올바르게 입력해주세요.'); return; }
+  if(ow) localStorage.setItem('ow',ow);
+  document.getElementById('setup-err').style.display='none';
+  loadSDK(kk);
+}
+
+function loadSDK(key){
+  const s=document.createElement('script');
+  s.src=`//dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(key)}&libraries=services,clusterer&autoload=false`;
+  s.onload=()=>{
+    kakao.maps.load(()=>{
+      localStorage.setItem('kk',key);
+      document.getElementById('setup-screen').style.display='none';
+      document.getElementById('app-screen').style.display='block';
+      initMap();
+    });
+  };
+  s.onerror=()=>showErr('API 키 로드 실패. 키와 도메인 등록을 확인해주세요.');
+  document.head.appendChild(s);
+}
+
+function showErr(msg){ const e=document.getElementById('setup-err'); e.textContent='⚠️ '+msg; e.style.display='block'; }
+function resetKey(){ if(!confirm('API 키를 초기화할까요?')) return; localStorage.clear(); location.reload(); }
+
+// ── Map ───────────────────────────────────────────────────────────────────────
+
+function initMap(){
+  document.getElementById('map-loading').style.display='none';
+  map=new kakao.maps.Map(document.getElementById('map'),{
+    center:new kakao.maps.LatLng(37.5665,126.9780), level:6
+  });
+  map.addControl(new kakao.maps.ZoomControl(), kakao.maps.ControlPosition.RIGHT);
+}
+
+// ── Location ─────────────────────────────────────────────────────────────────
+
+function getLocation(){
+  if(!map){alert('지도를 먼저 초기화해주세요.');return;}
+  if(!navigator.geolocation){alert('위치 서비스 미지원 브라우저입니다.');return;}
+  setStorePanel('<div class="empty"><div class="spin" style="margin:0 auto;width:28px;height:28px;border:3px solid #ede9fe;border-top-color:#6d28d9;border-radius:50%;animation:spin .8s linear infinite;"></div><div class="empty-msg" style="margin-top:10px;">위치 정보 가져오는 중...</div></div>');
+  navigator.geolocation.getCurrentPosition(
+    pos=>{
+      userPos={lat:pos.coords.latitude,lng:pos.coords.longitude};
+      const ll=new kakao.maps.LatLng(userPos.lat,userPos.lng);
+      map.setCenter(ll); map.setLevel(5);
+      placeUserMarker(ll);
+      searchStores();
+      fetchWeather(userPos.lat,userPos.lng);
+    },
+    ()=>setStorePanel('<div class="empty"><div class="empty-icon">❌</div><div class="empty-msg">위치 접근이 거부됐어요.<br>브라우저 설정에서 위치 허용해주세요.</div></div>'),
+    {enableHighAccuracy:true,timeout:10000}
+  );
+}
+
+function placeUserMarker(ll){
+  if(userMarker) userMarker.setMap(null);
+  userMarker=new kakao.maps.Marker({position:ll,map});
+}
+
+// ── Store Search ──────────────────────────────────────────────────────────────
+
+function searchStores(){
+  if(!userPos) return;
+  new kakao.maps.services.Places().keywordSearch('요거트월드',(data,status)=>{
+    if(status===kakao.maps.services.Status.OK){
+      storeList=data; renderStores(data); placeMarkers(data);
+      switchTab('stores',document.querySelector('.tab-item'));
+    } else {
+      storeList=[]; clearMarkers();
+      setStorePanel(`<div class="empty"><div class="empty-icon">🔍</div><div class="empty-msg">반경 ${searchRadius/1000}km 이내 매장이 없어요 😢<br><small>반경을 늘려보세요!</small></div></div>`);
+    }
+  },{location:new kakao.maps.LatLng(userPos.lat,userPos.lng),radius:searchRadius,sort:kakao.maps.services.SortBy.DISTANCE});
+}
+
+function setStorePanel(html){
+  document.getElementById('stores-empty').style.display='none';
+  const el=document.getElementById('stores-list'); el.style.display='block'; el.innerHTML=html;
+}
+
+function renderStores(data){
+  if(!data.length) return;
+  const R=['🥇','🥈','🥉','4️⃣','5️⃣','6️⃣','7️⃣','8️⃣','9️⃣','🔟'];
+  setStorePanel(`
+    <div class="stores-header">📍 반경 ${searchRadius/1000}km · ${data.length}개 매장</div>
+    ${data.map((s,i)=>{
+      const d=parseInt(s.distance), ds=d>=1000?`${(d/1000).toFixed(1)}km`:`${d}m`, open=isOpen();
+      return `<div class="store-card" onclick="showSheet(${i})">
+        <div class="store-rank">${R[i]||''}</div>
+        <div class="store-name">🍦 ${s.place_name}</div>
+        <div class="store-addr">📍 ${s.road_address_name||s.address_name}</div>
+        <div class="store-chips">
+          <span class="chip chip-dist">📏 ${ds}</span>
+          <span class="chip ${open?'chip-open':'chip-close'}">${open?'🟢 영업중':'🔴 종료'}</span>
+          ${s.phone?`<span class="chip chip-phone">📞 ${s.phone}</span>`:''}
+        </div>
+      </div>`;
+    }).join('')}
+  `);
+}
+
+// ── Markers ───────────────────────────────────────────────────────────────────
+
+function placeMarkers(data){
+  clearMarkers();
+  data.forEach((s,i)=>{
+    const ll=new kakao.maps.LatLng(s.y,s.x);
+    const m=new kakao.maps.Marker({position:ll,map});
+    const iw=new kakao.maps.InfoWindow({content:`<div style="padding:6px 10px;font-size:12px;font-weight:700;">${s.place_name}</div>`});
+    kakao.maps.event.addListener(m,'click',()=>{showSheet(i);map.setCenter(ll);});
+    kakao.maps.event.addListener(m,'mouseover',()=>iw.open(map,m));
+    kakao.maps.event.addListener(m,'mouseout',()=>iw.close());
+    markers.push(m);
+  });
+}
+function clearMarkers(){ markers.forEach(m=>m.setMap(null)); markers=[]; }
+
+// ── Sheet ─────────────────────────────────────────────────────────────────────
+
+function showSheet(idx){
+  const s=storeList[idx]; if(!s) return;
+  const d=parseInt(s.distance), ds=d>=1000?`${(d/1000).toFixed(1)}km`:`${d}m`, open=isOpen();
+  document.getElementById('sheet-body').innerHTML=`
+    <div class="sheet-name">🍦 ${s.place_name}</div>
+    <div class="sheet-cat">${s.category_name}</div>
+    <div class="sheet-chips">
+      <span class="chip chip-dist">📏 ${ds}</span>
+      <span class="chip ${open?'chip-open':'chip-close'}">${open?'🟢 영업중':'🔴 종료'}</span>
+    </div>
+    <div class="sheet-info-row"><div class="sheet-info-icon">📍</div><div class="sheet-info-val">${s.road_address_name||s.address_name}</div></div>
+    ${s.phone?`<div class="sheet-info-row"><div class="sheet-info-icon">📞</div><div class="sheet-info-val"><a href="tel:${s.phone}">${s.phone}</a></div></div>`:''}
+    <div class="sheet-info-row"><div class="sheet-info-icon">⏰</div><div class="sheet-info-val">매일 11:00 ~ 22:00 (매장별 상이)</div></div>
+    <div class="sheet-info-row"><div class="sheet-info-icon">💰</div><div class="sheet-info-val">요거트 89원/g · 셀프 서빙</div></div>
+    ${renderCrowdChart()}
+    <div class="sheet-actions">
+      <a class="action-btn action-kakao" href="${s.place_url}" target="_blank">🗺️ 카카오맵</a>
+      <a class="action-btn action-naver" href="https://map.naver.com/p/search/${encodeURIComponent(s.place_name+' '+(s.road_address_name||s.address_name))}" target="_blank">🗺️ 네이버지도</a>
+      <a class="action-btn action-nav" href="https://map.kakao.com/link/to/${encodeURIComponent(s.place_name)},${s.y},${s.x}" target="_blank">🚗 길찾기</a>
+    </div>
+  `;
+  document.getElementById('sheet-bg').classList.add('show');
+  document.getElementById('sheet').classList.add('show');
+  map.setCenter(new kakao.maps.LatLng(s.y,s.x));
+}
+function closeSheet(){ document.getElementById('sheet-bg').classList.remove('show'); document.getElementById('sheet').classList.remove('show'); }
+
+// ── 혼잡도 Chart ──────────────────────────────────────────────────────────────
+
+function renderCrowdChart(){
+  const now=new Date(), day=now.getDay(), hour=now.getHours();
+  const pattern=CROWD[day];
+  const SHOW_HOURS=[9,10,11,12,13,14,15,16,17,18,19,20,21];
+  const nowVal=pattern[hour];
+  const { label, color, bg } = getCrowdInfo(nowVal);
+
+  const bars=SHOW_HOURS.map(h=>{
+    const v=pattern[h], isCur=(h===hour);
+    const barColor=getCrowdColor(v);
+    return `<div class="crowd-bar-wrap">
+      <div class="crowd-bar${isCur?' current':''}"
+           style="height:${Math.max(v*0.44,2)}px;background:${barColor};${isCur?'opacity:1':'opacity:0.5'}"></div>
+    </div>`;
+  }).join('');
+
+  const labels=SHOW_HOURS.map(h=>`<div class="crowd-time-label">${h<12?`${h}am`:h===12?'12pm':`${h-12}pm`}</div>`).join('');
+
+  return `
+    <div class="crowd-section">
+      <div class="crowd-title">🕐 현재 혼잡도 예측</div>
+      <div class="crowd-now" style="background:${bg};color:${color}">
+        <div class="crowd-now-emoji">${getEmoji(nowVal)}</div>
+        <div>
+          <div class="crowd-now-label">${label}</div>
+          <div class="crowd-now-sub">${getDayName(day)} ${hour}시 기준 예측</div>
+        </div>
+      </div>
+      <div class="crowd-bars">${bars}</div>
+      <div class="crowd-time-labels">${labels}</div>
+      <div class="crowd-legend">
+        <div class="legend-item"><div class="legend-dot" style="background:#10B981"></div>한산</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#F59E0B"></div>보통</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#EF4444"></div>혼잡</div>
+        <div style="font-size:10px;color:var(--c-gray-400);margin-top:2px;width:100%">※ 일반적인 패턴 기반 예측으로 실제와 다를 수 있어요</div>
+      </div>
+    </div>
+  `;
+}
+
+function getCrowdInfo(v){
+  if(v<=20) return {label:'한산해요 😊',color:'#065F46',bg:'#D1FAE5'};
+  if(v<=40) return {label:'보통이에요 🙂',color:'#92400E',bg:'#FEF3C7'};
+  if(v<=65) return {label:'조금 붐벼요 😅',color:'#9A3412',bg:'#FFEDD5'};
+  return {label:'많이 혼잡해요 🔴',color:'#991B1B',bg:'#FEE2E2'};
+}
+function getCrowdColor(v){
+  if(v<=20) return '#10B981';
+  if(v<=40) return '#F59E0B';
+  if(v<=65) return '#F97316';
+  return '#EF4444';
+}
+function getEmoji(v){ return v<=20?'😊':v<=40?'🙂':v<=65?'😅':'😰'; }
+function getDayName(d){ return ['일','월','화','수','목','금','토'][d]+'요일'; }
+
+// ── Weather ───────────────────────────────────────────────────────────────────
+
+async function fetchWeather(lat,lng){
+  const owKey=localStorage.getItem('ow'); if(!owKey) return;
+  try{
+    const res=await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lng}&appid=${owKey}&units=metric&lang=kr`);
+    const d=await res.json(); if(!d.weather) return;
+    showWeatherBanner(d.weather[0].id, d.main.temp, d.weather[0].description);
+  }catch(e){ console.warn('날씨 오류',e); }
+}
+
+function showWeatherBanner(wid, temp, desc){
+  const t=Math.round(temp);
+  let cfg=null;
+
+  for(const c of WEATHER_CONFIGS){
+    if(wid>=c.range[0]&&wid<=c.range[1]){cfg=c;break;}
+  }
+
+  if(!cfg){
+    // Clear / Clouds
+    if(t>=30) cfg={ emoji:'🔥', title:`지금 ${t}°C! 더위 잡을 시간이에요`, msg:'시원한 요거트로 더위 날리기 지금 바로 가세요 🍦', bg:'linear-gradient(135deg,#f97316,#dc2626)', color:'white' };
+    else if(t>=23) cfg={ emoji:'☀️', title:'날씨가 딱 좋네요!', msg:'요거트 먹으러 나가볼까요? 오늘 같은 날 딱이에요 😊', bg:'linear-gradient(135deg,#f59e0b,#f97316)', color:'white' };
+    else if(t>=15) cfg={ emoji:'🌤️', title:'쾌적한 날씨예요', msg:'산책하다 요거트월드 들르기 딱 좋은 날이에요', bg:'linear-gradient(135deg,#6D28D9,#DB2777)', color:'white' };
+    else cfg={ emoji:'🧥', title:`지금 ${t}°C, 쌀쌀하네요`, msg:'쌀쌀한 날도 요거트는 맛있어요. 따뜻하게 입고 오세요!', bg:'linear-gradient(135deg,#0ea5e9,#6D28D9)', color:'white' };
+  }
+
+  const bar=document.getElementById('weather-bar');
+  const inner=document.getElementById('weather-inner');
+  inner.style.background=cfg.bg;
+  inner.style.color=cfg.color;
+  document.getElementById('w-emoji').textContent=cfg.emoji;
+  document.getElementById('w-title').textContent=cfg.title;
+  document.getElementById('w-msg').textContent=cfg.msg;
+  document.getElementById('w-temp').textContent=`${t}°C`;
+  bar.style.display='block';
+}
+
+// ── Tabs ──────────────────────────────────────────────────────────────────────
+
+function switchTab(id,el){
+  document.querySelectorAll('.tab-item').forEach(t=>t.classList.remove('on'));
+  if(el) el.classList.add('on');
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('on'));
+  document.getElementById('panel-'+id).classList.add('on');
+}
+
+function setRadius(r,el){
+  searchRadius=r;
+  document.querySelectorAll('.r-btn').forEach(b=>b.classList.remove('on'));
+  el.classList.add('on');
+  if(userPos) searchStores();
+}
+
+// ── Static Renders ────────────────────────────────────────────────────────────
+
+function renderMenu(){
+  const row=i=>`<div class="menu-row"><div><div class="menu-name">${i.name}</div>${i.desc?`<div class="menu-desc">${i.desc}</div>`:''}</div><div class="menu-price">${typeof i.price==='number'?i.price.toLocaleString()+'원':i.price}</div></div>`;
+  document.getElementById('yogurt-menu').innerHTML=MENU.yogurt.map(row).join('');
+  document.getElementById('fruit-topping').innerHTML=MENU.fruit.map(row).join('');
+  document.getElementById('rice-topping').innerHTML=MENU.rice.map(row).join('');
+  document.getElementById('sauce-topping').innerHTML=MENU.sauce.map(row).join('');
+}
+
+function renderToppingGrid(){
+  document.getElementById('topping-grid').innerHTML=TOPPINGS_CALC.map((t,i)=>`
+    <div class="topping-item" id="top-${i}" onclick="toggleTopping(${i})">
+      <span style="font-size:17px;">${t.emoji}</span>
+      <div style="flex:1;"><div class="topping-name">${t.name}</div><div class="topping-price">+${t.price.toLocaleString()}원</div></div>
+      <span id="top-chk-${i}" style="font-size:15px;color:var(--c-gray-200)">◯</span>
+    </div>`).join('');
+}
+
+function renderCombos(){
+  document.getElementById('combos-grid').innerHTML=COMBOS.map((c,i)=>`
+    <div class="combo-card" onclick="applyCombo(${i})">
+      <div class="combo-name">${c.name}</div>
+      <div class="combo-desc">${c.desc}</div>
+      <div class="combo-tag">${c.tag}</div>
+    </div>`).join('');
+}
+
+function renderEvents(){
+  document.getElementById('events-list').innerHTML=EVENTS.map(e=>`
+    <div class="event-card">
+      <div class="event-badge">${e.badge}</div>
+      <div class="event-title">${e.title}</div>
+      <div class="event-desc">${e.desc}</div>
+      <div class="event-period">${e.period}</div>
+    </div>`).join('');
+}
+
+function renderReviews(){
+  const stars=n=>'★'.repeat(n)+'☆'.repeat(5-n);
+  document.getElementById('reviews-list').innerHTML=REVIEWS.map(r=>`
+    <div class="review-card">
+      <div class="review-top">
+        <div><div class="review-author">${r.author}</div><div class="review-source">${r.source}</div></div>
+        <div class="review-stars">${stars(r.rating)} ${r.rating}.0</div>
+      </div>
+      <div class="review-text">${r.text}</div>
+      ${r.badge?`<div class="review-badge">${r.badge}</div>`:''}
+      <div class="review-date">${r.date}</div>
+    </div>`).join('');
+}
+
+function renderGallery(){
+  document.getElementById('gallery-previews').innerHTML=GALLERY_PREVIEWS.map(p=>`
+    <a class="preview-card" href="https://www.instagram.com/explore/tags/%EC%9A%94%EA%B1%B0%ED%8A%B8%EC%9B%94%EB%93%9C/" target="_blank"
+       style="background:${p.bg};">
+      <span>${p.emoji}</span>
+      <span class="preview-label">${p.label}</span>
+    </a>`).join('');
+
+  document.getElementById('hashtag-grid').innerHTML=HASHTAGS.map(h=>`
+    <a class="hashtag-btn" href="${h.url}" target="_blank">
+      <div class="hashtag-icon">${h.emoji}</div>
+      <div class="hashtag-text">
+        <div class="hashtag-name">${h.tag}</div>
+        <div class="hashtag-count">${h.count}</div>
+      </div>
+      <span style="font-size:16px;color:var(--c-gray-400)">→</span>
+    </a>`).join('');
+}
+
+// ── Calculator ────────────────────────────────────────────────────────────────
+
+function onGramChange(v){ gramVal=parseInt(v); document.getElementById('gram-val').textContent=gramVal; updateCalc(); }
+function setGram(g){ gramVal=g; document.getElementById('gram-slider').value=g; document.getElementById('gram-val').textContent=g; updateCalc(); }
+function toggleTopping(i){
+  if(selectedToppings.has(i)){ selectedToppings.delete(i); document.getElementById(`top-${i}`).classList.remove('on'); document.getElementById(`top-chk-${i}`).textContent='◯'; document.getElementById(`top-chk-${i}`).style.color='var(--c-gray-200)'; }
+  else { selectedToppings.add(i); document.getElementById(`top-${i}`).classList.add('on'); document.getElementById(`top-chk-${i}`).textContent='✓'; document.getElementById(`top-chk-${i}`).style.color='var(--c-violet)'; }
+  updateCalc();
+}
+function applyCombo(i){
+  const c=COMBOS[i]; setGram(c.grams); selectedToppings.clear();
+  document.querySelectorAll('.topping-item').forEach(el=>el.classList.remove('on'));
+  document.querySelectorAll('[id^="top-chk-"]').forEach(el=>{ el.textContent='◯'; el.style.color='var(--c-gray-200)'; });
+  c.tops.forEach(name=>{ const idx=TOPPINGS_CALC.findIndex(t=>t.name===name); if(idx>=0) toggleTopping(idx); });
+  switchTab('calc',document.querySelectorAll('.tab-item')[2]); updateCalc();
+}
+function updateCalc(){
+  const yc=gramVal*YOGURT_PER_G; let tc=0; const tn=[];
+  selectedToppings.forEach(i=>{ tc+=TOPPINGS_CALC[i].price; tn.push(TOPPINGS_CALC[i].name); });
+  const total=yc+tc;
+  document.getElementById('total-price').innerHTML=total.toLocaleString()+'<span>원</span>';
+  document.getElementById('total-breakdown').textContent=tn.length?`요거트 ${gramVal}g (${yc.toLocaleString()}원) + ${tn.join(', ')} (${tc.toLocaleString()}원)`:`요거트 ${gramVal}g (${yc.toLocaleString()}원) · 토핑을 추가해보세요`;
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function isOpen(){ const h=new Date().getHours(); return h>=11&&h<22; }
+</script>
+</body>
+</html>
